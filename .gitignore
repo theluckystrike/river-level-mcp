@@ -1,0 +1,4 @@
+.live/
+.wrangler/
+*.log
+node_modules/
