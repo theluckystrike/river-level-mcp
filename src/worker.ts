@@ -5,6 +5,21 @@ import { createServer, TOOL_INFO, VERSION } from './tools.js';
 import { fetchWithRetry } from './fetch-node.js';
 import { SITE, UTM } from './core.js';
 import type { FetchText } from './types.js';
+import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
+
+/**
+ * Measured 2026-11-14 on the estate's hosted endpoint: a major MCP client sends tool calls with
+ * mcp-protocol-version 2026-07-28, newer than this SDK knows, and the SDK answers 400.
+ * A well-formed date newer than the SDK's latest is served as the latest; malformed or
+ * older values are left for the SDK to reject.
+ */
+export function normalizeProtocolVersion(request: Request): Request {
+  const v = request.headers.get('mcp-protocol-version')?.trim();
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v) || v <= LATEST_PROTOCOL_VERSION) return request;
+  const headers = new Headers(request.headers);
+  headers.set('mcp-protocol-version', LATEST_PROTOCOL_VERSION);
+  return new Request(request, { headers });
+}
 
 // Only 2xx answers are cached at the edge. A plain cf.cacheTtl cached every status, so one upstream 403 or 5xx was
 // served to every caller until the TTL ran out (measured 2026-11-17: cf-cache-status HIT on a data.cms.gov 403).
@@ -55,7 +70,7 @@ export default {
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     const server = createServer(fetchTextEdge);
     await server.connect(transport);
-    const res = await transport.handleRequest(request);
+    const res = await transport.handleRequest(normalizeProtocolVersion(request));
     const headers = new Headers(res.headers);
     for (const [k, v] of Object.entries(CORS)) headers.set(k, v);
     return new Response(res.body, { status: res.status, headers });
