@@ -4,7 +4,9 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { createServer, TOOL_INFO, VERSION } from './tools.js';
 import { fetchWithRetry } from './fetch-node.js';
 import { SITE, UTM } from './core.js';
-const fetchTextEdge = (url, opts = {}) => fetchWithRetry(url, opts, { cf: { cacheTtl: Math.max(120, opts.cacheTtl ?? 300), cacheEverything: true } });
+// Only 2xx answers are cached at the edge. A plain cf.cacheTtl cached every status, so one upstream 403 or 5xx was
+// served to every caller until the TTL ran out (measured 2026-11-17: cf-cache-status HIT on a data.cms.gov 403).
+export const fetchTextEdge = (url, opts = {}) => fetchWithRetry(url, opts, { cf: { cacheEverything: true, cacheTtlByStatus: { '200-299': Math.max(120, opts.cacheTtl ?? 300), '300-599': 0 } } });
 const CORS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',

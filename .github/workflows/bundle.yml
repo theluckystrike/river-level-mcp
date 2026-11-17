@@ -1,0 +1,42 @@
+name: bundle
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'wrangler.toml'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Bundle the Worker without deploying
+        run: npx --yes wrangler@4 deploy --dry-run --outdir out
+      - run: ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker-bundle
+          path: out
+          retention-days: 14
+          if-no-files-found: error
